@@ -6,61 +6,64 @@ st.set_page_config(page_title="MIKE 1 Inventory Dashboard", layout="wide")
 
 st.title("📦 MIKE 1 Inventory Dashboard")
 
-# -------------------------------
-# Load Excel file
-# -------------------------------
 uploaded_file = st.file_uploader("Upload TEST 1.xlsx file", type=["xlsx"])
 
 if uploaded_file is None:
     st.info("Please upload TEST 1.xlsx to continue.")
     st.stop()
 
-# Read Excel
 df = pd.read_excel(uploaded_file)
 
 # -------------------------------
-# Remove CS2 completely
+# FIX: Normalize column names
 # -------------------------------
-if "CS 2" in df.columns:
-    df = df.drop(columns=["CS 2"])
+original_columns = df.columns.copy()
+
+df.columns = (
+    df.columns
+    .str.strip()
+    .str.upper()
+    .str.replace(" ", "")
+    .str.replace("-", "")
+    .str.replace("_", "")
+)
 
 # -------------------------------
-# Remove rows where CS1 is empty or "-"
+# Identify CS1 column automatically
 # -------------------------------
-df = df[df["CS 1"].notna()]
-df = df[df["CS 1"].astype(str).str.strip() != "-"]
+cs1_candidates = [col for col in df.columns if "CS1" in col]
+
+if not cs1_candidates:
+    st.error("❌ ERROR: Could not find a column matching CS1 in file.\n\n"
+             f"Columns found:\n{list(original_columns)}")
+    st.stop()
+
+cs1_col = cs1_candidates[0]  # use the first detected
 
 # -------------------------------
-# Remove unwanted columns
+# Remove rows where CS1 is empty
 # -------------------------------
-remove_cols = ["UID NO", "PO"]
-df = df.drop(columns=[c for c in remove_cols if c in df.columns], errors="ignore")
+df = df[df[cs1_col].notna()]
+df = df[df[cs1_col].astype(str).str.strip() != "-"]
 
 # -------------------------------
-# Format dates
+# Drop CS2 column if exists
 # -------------------------------
-date_cols = ["DATE OF REPACK", "DATE OF PRODUCE"]
-for col in date_cols:
-    if col in df.columns:
-        df[col] = pd.to_datetime(df[col], errors="coerce")
+cs2_candidates = [col for col in df.columns if "CS2" in col]
+if cs2_candidates:
+    df = df.drop(columns=[cs2_candidates[0]])
 
 # -------------------------------
-# Reorder columns
+# Convert dates (normalize names)
 # -------------------------------
-final_order = [
-    "STATUS", "FCL-NO", "ENTERED BY", "DATE OF REPACK", "DATE OF PRODUCE",
-    "PRODUCT ID", "PACKING STYLE", "PRODUCT", "GRADE", "PACK SIZE", "BRAND",
-    "CARTONS", "LOT NO", "TRACE ID", "DAY CODE", "LOOSE BAGS", "KG LOOSE",
-    "PALLET ID", "CS 1", "REMARKS", "NAV ID", "KGs", "POUNDS"
-]
+date_cols = {
+    "DATEOFREPACK": "DATE OF REPACK",
+    "DATEOFPRODUCE": "DATE OF PRODUCE"
+}
 
-df = df[[col for col in final_order if col in df.columns]]
-
-# -------------------------------
-# Show total cartons
-# -------------------------------
-total_cartons = df["CARTONS"].sum()
-st.metric(label="📦 Total Cartons", value=total_cartons)
+for normalized_col, display_name in date_cols.items():
+    if normalized_col in df.columns:
+        df[display_name] = pd.to_datetime(df[normalized_col], errors="coerce")
 
 # -------------------------------
 # Show cleaned table
@@ -68,55 +71,48 @@ st.metric(label="📦 Total Cartons", value=total_cartons)
 st.subheader("Cleaned Inventory Data")
 st.dataframe(df, use_container_width=True)
 
-# -------------------------------
-# Chart data preparation
-# -------------------------------
+# ===============================
+# CHARTS
+# ===============================
 if "DATE OF REPACK" in df.columns:
     df["DATE_CHART"] = pd.to_datetime(df["DATE OF REPACK"], errors="coerce")
 
-    # DAILY
+    # Daily
     daily = df.groupby(df["DATE_CHART"].dt.date).size().reset_index(name="COUNT")
 
-    # WEEKLY
+    # Weekly
     weekly = df.groupby(df["DATE_CHART"].dt.isocalendar().week).size().reset_index(name="COUNT")
     weekly.rename(columns={"week": "WEEK"}, inplace=True)
 
-    # MONTHLY (Fix)
+    # Monthly
     monthly = df.groupby(df["DATE_CHART"].dt.strftime("%b")).size().reset_index(name="COUNT")
     monthly.rename(columns={monthly.columns[0]: "MONTH"}, inplace=True)
 
-    # -------------------------------
-    # Display charts
-    # -------------------------------
     st.subheader("📊 Inventory Charts")
 
-    # Daily chart
-    st.write("### Daily Activity")
-    chart_daily = alt.Chart(daily).mark_bar().encode(
-        x="DATE_CHART:T",
-        y="COUNT:Q",
-        tooltip=["DATE_CHART", "COUNT"]
-    ).properties(height=300)
-    st.altair_chart(chart_daily, use_container_width=True)
+    st.write("### Daily")
+    st.altair_chart(
+        alt.Chart(daily).mark_bar().encode(
+            x="DATE_CHART:T", y="COUNT:Q", tooltip=["DATE_CHART", "COUNT"]
+        ).properties(height=300),
+        use_container_width=True
+    )
 
-    # Weekly chart
-    st.write("### Weekly Activity")
-    chart_weekly = alt.Chart(weekly).mark_bar().encode(
-        x="WEEK:O",
-        y="COUNT:Q",
-        tooltip=["WEEK", "COUNT"]
-    ).properties(height=300)
-    st.altair_chart(chart_weekly, use_container_width=True)
+    st.write("### Weekly")
+    st.altair_chart(
+        alt.Chart(weekly).mark_bar().encode(
+            x="WEEK:O", y="COUNT:Q", tooltip=["WEEK", "COUNT"]
+        ).properties(height=300),
+        use_container_width=True
+    )
 
-    # Monthly chart
-    st.write("### Monthly Activity")
-    chart_monthly = alt.Chart(monthly).mark_bar().encode(
-        x="MONTH:N",
-        y="COUNT:Q",
-        tooltip=["MONTH", "COUNT"]
-    ).properties(height=300)
-    st.altair_chart(chart_monthly, use_container_width=True)
-
+    st.write("### Monthly")
+    st.altair_chart(
+        alt.Chart(monthly).mark_bar().encode(
+            x="MONTH:N", y="COUNT:Q", tooltip=["MONTH", "COUNT"]
+        ).properties(height=300),
+        use_container_width=True
+    )
 
 
 
