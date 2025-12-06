@@ -1,103 +1,183 @@
-import streamlit as st
-import pandas as pd
-import altair as alt
+"use client";
 
-st.title("Inventory Cleaner")
+import { useState } from "react";
+import Papa from "papaparse";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
-uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+export default function InventoryCleaner() {
+  const [csvData, setCsvData] = useState([]);
+  const [fileName, setFileName] = useState("");
+  const [dailyChart, setDailyChart] = useState([]);
+  const [weeklyChart, setWeeklyChart] = useState([]);
+  const [monthlyChart, setMonthlyChart] = useState([]);
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+  const handleFileUpload = (file: any) => {
+    setFileName(file.name);
 
-    # -------------------------------
-    # 1. REMOVE CS2 ROWS COMPLETELY
-    # -------------------------------
-    if "CS2" in df.columns:
-        df = df[df["CS2"].isna()]  # keep only rows where CS2 is empty
-        df = df.drop(columns=["CS2"])  # remove CS2 column
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result: any) => {
+        const rows = result.data;
+        setCsvData(rows);
+        processCharts(rows);
+      },
+    });
+  };
 
-    # -------------------------------
-    # 2. REMOVE COLUMNS: FCL NO, PO, UID NO
-    # -------------------------------
-    for col in ["FCL NO", "PO", "UID NO"]:
-        if col in df.columns:
-            df = df.drop(columns=[col])
+  const onDrop = (e: any) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    handleFileUpload(file);
+  };
 
-    # -------------------------------
-    # 3. FIX DATE FORMAT
-    # -------------------------------
-    df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
-    df["DATE"] = df["DATE"].dt.strftime("%d-%m-%Y")
+  const processCharts = (rows: any[]) => {
+    const daily: any = {};
+    const weekly: any = {};
+    const monthly: any = {};
 
-    # -------------------------------
-    # 4. REMOVE ROWS WHERE CS1 == "--"
-    # -------------------------------
-    df = df[df["CS1"] != "--"]
+    rows.forEach((row: any) => {
+      const date = new Date(row["Date"]);
+      if (!date) return;
 
-    # -------------------------------
-    # 5. REARRANGE COLUMNS
-    # -------------------------------
-    desired_order = [
-        "STATUS", "FCL NO.", "ENTERED BY", "DATE OF REPACK", "DATE OF PRODUCTION",
-        "PRODUCT ID", "PACKING STYLE", "PRODUCT", "GRADE", "PACK SIZE", "BRAND",
-        "CARTONS", "LOT NO", "TRACE ID", "DAY CODE", "LOOSE BAGS", "KG LOOSE",
-        "PALLET ID", "CS1", "REMARKS", "NAV ID", "KGs", "POUNDS", "COLUMN1"
-    ]
+      const day = date.toISOString().split("T")[0];
+      const week = `Week-${Math.ceil(date.getDate() / 7)}`;
+      const month = date.toLocaleString("default", { month: "short" });
 
-    # Keep only existing columns from desired order
-    existing_cols = [c for c in desired_order if c in df.columns]
-    other_cols = [c for c in df.columns if c not in existing_cols]
-    df = df[existing_cols + other_cols]
+      daily[day] = (daily[day] || 0) + 1;
+      weekly[week] = (weekly[week] || 0) + 1;
+      monthly[month] = (monthly[month] || 0) + 1;
+    });
 
-    # -------------------------------
-    # 6. SUMMARY — TOTAL CARTONS
-    # -------------------------------
-    if "CARTONS" in df.columns:
-        total_cartons = df["CARTONS"].sum()
-        st.subheader(f"📦 Total Cartons: **{total_cartons}**")
+    setDailyChart(formatChart(daily));
+    setWeeklyChart(formatChart(weekly));
+    setMonthlyChart(formatChart(monthly));
+  };
 
-    # -------------------------------
-    # 7. DISPLAY CLEANED DATA
-    # -------------------------------
-    st.write("### Cleaned Inventory Data")
-    st.dataframe(df)
+  const formatChart = (obj: any) =>
+    Object.keys(obj).map((key) => ({ label: key, value: obj[key] }));
 
-    # -------------------------------
-    # 8. CHARTS (Daily, Weekly, Monthly)
-    # -------------------------------
+  return (
+    <div className="min-h-screen bg-[#0E1117] text-white p-10">
 
-    # Convert date for grouping
-    df_chart = df.copy()
-    df_chart["DATE"] = pd.to_datetime(df_chart["DATE"], format="%d-%m-%Y", errors="coerce")
+      {/* TITLE */}
+      <h1 className="text-5xl font-bold mb-10 text-center">
+        Inventory Cleaner Dashboard
+      </h1>
 
-    if "CARTONS" not in df_chart.columns:
-        st.warning("CARTONS column missing — charts cannot be generated.")
-    else:
-        st.subheader("📅 Daily Cartons Chart")
-        daily = df_chart.groupby("DATE")["CARTONS"].sum().reset_index()
-        daily_chart = alt.Chart(daily).mark_bar().encode(
-            x="DATE:T", y="CARTONS:Q"
-        )
-        st.altair_chart(daily_chart, use_container_width=True)
+      {/* UPLOAD BOX */}
+      <div
+        className="border-2 border-dashed border-gray-600 bg-[#1A1F29] p-10 rounded-xl text-center cursor-pointer hover:bg-[#222833] transition"
+        onDrop={onDrop}
+        onDragOver={(e) => e.preventDefault()}
+      >
+        <div className="text-6xl mb-3">📤</div>
+        <p className="text-xl">Drag & Drop your CSV file here</p>
+        <p className="text-gray-400">Max 200MB • Only CSV files allowed</p>
 
-        st.subheader("📆 Weekly Cartons Chart")
-        df_chart["WEEK"] = df_chart["DATE"].dt.to_period("W").apply(lambda r: r.start_time)
-        weekly = df_chart.groupby("WEEK")["CARTONS"].sum().reset_index()
-        weekly_chart = alt.Chart(weekly).mark_bar().encode(
-            x="WEEK:T", y="CARTONS:Q"
-        )
-        st.altair_chart(weekly_chart, use_container_width=True)
+        <input
+          type="file"
+          accept=".csv"
+          className="hidden"
+          id="fileInput"
+          onChange={(e) => handleFileUpload(e.target.files![0])}
+        />
 
-        st.subheader("📅 Monthly Cartons Chart")
-        df_chart["MONTH"] = df_chart["DATE"].dt.to_period("M").dt.to_timestamp()
-        monthly = df_chart.groupby("MONTH")["CARTONS"].sum().reset_index()
-        monthly_chart = alt.Chart(monthly).mark_bar().encode(
-            x="MONTH:T", y="CARTONS:Q"
-        )
-        st.altair_chart(monthly_chart, use_container_width=True)
+        <label
+          htmlFor="fileInput"
+          className="mt-4 inline-block bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700 transition cursor-pointer"
+        >
+          Browse Files
+        </label>
+      </div>
 
-else:
-    st.info("Upload a CSV file to continue.")
+      {/* FILE STATUS */}
+      {!fileName ? (
+        <p className="mt-5 text-center text-blue-300">
+          Upload a CSV file to continue.
+        </p>
+      ) : (
+        <p className="mt-5 text-center text-green-400 text-xl">
+          ✔ Uploaded: {fileName}
+        </p>
+      )}
+
+      {/* PREVIEW TABLE */}
+      {csvData.length > 0 && (
+        <div className="mt-10 bg-[#1A1F29] p-6 rounded-xl overflow-auto">
+          <h2 className="text-2xl mb-4 font-semibold">Preview Data</h2>
+          <table className="table-auto w-full border border-gray-700 text-left">
+            <thead>
+              <tr>
+                {Object.keys(csvData[0]).map((key, i) => (
+                  <th key={i} className="border p-2 bg-[#222833]">
+                    {key}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {csvData.slice(0, 10).map((row, i) => (
+                <tr key={i}>
+                  {Object.values(row).map((val: any, j) => (
+                    <td key={j} className="border p-2">
+                      {val}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-gray-400 mt-2">Showing first 10 rows only…</p>
+        </div>
+      )}
+
+      {/* CHARTS */}
+      {csvData.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-3xl mb-6 font-semibold text-center">
+            Inventory Charts
+          </h2>
+
+          {/* DAILY */}
+          <ChartBlock title="Daily Activity" data={dailyChart} />
+
+          {/* WEEKLY */}
+          <ChartBlock title="Weekly Activity" data={weeklyChart} />
+
+          {/* MONTHLY */}
+          <ChartBlock title="Monthly Activity" data={monthlyChart} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChartBlock({ title, data }: any) {
+  return (
+    <div className="bg-[#1A1F29] p-6 mb-10 rounded-xl">
+      <h3 className="text-xl mb-4 font-semibold">{title}</h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="label" />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="value" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 
 
 
