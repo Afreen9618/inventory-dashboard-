@@ -5,97 +5,75 @@ from datetime import datetime
 
 st.set_page_config(page_title="Inventory Cleaner Dashboard", layout="wide")
 
-# ---- TITLE ----
-st.markdown(
-    """
-    <h1 style='text-align:center; color:white;'>
-        📦 Inventory Cleaner Dashboard
-    </h1>
-    """,
-    unsafe_allow_html=True
-)
+st.title("📊 Inventory Cleaner Dashboard")
 
-# ---- UPLOAD FILE ----
-st.markdown(
-    """
-    <div style="
-        border:2px dashed #555;
-        background:#1A1F29;
-        padding:40px;
-        border-radius:15px;
-        text-align:center;
-        color:white;">
-        
-        <h2>📤 Upload CSV File</h2>
-        <p>Drag & Drop or Browse • Max 200MB • CSV only</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# ============================
+# FILE UPLOAD
+# ============================
+uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
-uploaded_file = st.file_uploader("", type=["csv"])
-
-# Stop if no file
-if not uploaded_file:
-    st.info("⬆ Upload a CSV file to continue.")
+if uploaded_file is None:
+    st.info("⬆ Please upload TEST 1 CSV file to see the dashboard.")
     st.stop()
 
-# ---- READ CSV ----
+# Read CSV
 df = pd.read_csv(uploaded_file)
 
-st.success(f"✔ Uploaded: {uploaded_file.name}")
-
-# Ensure Date column exists
+# ============================
+# PARSE DATE COLUMN
+# ============================
 if "Date" not in df.columns:
-    st.error("❌ ERROR: Your CSV must contain a 'Date' column.")
+    st.error("❌ CSV must contain a column named **Date**")
     st.stop()
 
-# Convert Date column
 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 
-# ---- PREVIEW TABLE ----
-st.markdown("### 🔎 Preview (first 10 rows)")
+# ============================
+# PREVIEW TABLE
+# ============================
+st.subheader("🔍 Preview Data")
 st.dataframe(df.head(10))
 
-# ---- PROCESS DATA ----
+# ============================
+# PROCESS DAILY / WEEKLY / MONTHLY
+# ============================
 df["Day"] = df["Date"].dt.date
-df["Week"] = df["Date"].dt.strftime("Week-%U")
+df["Week"] = df["Date"].dt.isocalendar().week
 df["Month"] = df["Date"].dt.strftime("%b")
 
 daily = df.groupby("Day").size().reset_index(name="Count")
 weekly = df.groupby("Week").size().reset_index(name="Count")
 monthly = df.groupby("Month").size().reset_index(name="Count")
 
-# ---- CHART CREATOR ----
-def create_chart(data, x, y):
-    return (
+# ============================
+# CHART FUNCTION
+# ============================
+def render_chart(data, x, y, title):
+    chart = (
         alt.Chart(data)
         .mark_bar()
         .encode(
-            x=alt.X(x, sort=None, axis=alt.Axis(labelColor="white", titleColor="white")),
-            y=alt.Y(y, axis=alt.Axis(labelColor="white", titleColor="white")),
+            x=x,
+            y=y,
             tooltip=[x, y]
         )
-        .properties(height=300)
-        .configure_axis(grid=False)
+        .properties(height=300, title=title)
     )
+    st.altair_chart(chart, use_container_width=True)
 
-# ---- CHARTS SECTION ----
-st.markdown("## 📊 Inventory Charts")
+# ============================
+# SHOW CHARTS
+# ============================
+st.subheader("📅 Daily Activity")
+render_chart(daily, "Day:T", "Count:Q", "Daily Activity")
 
-col1, col2, col3 = st.columns(3)
+st.subheader("📆 Weekly Activity")
+render_chart(weekly, "Week:O", "Count:Q", "Weekly Activity")
 
-with col1:
-    st.markdown("### Daily Activity")
-    st.altair_chart(create_chart(daily, "Day", "Count"), use_container_width=True)
+st.subheader("📈 Monthly Activity")
+render_chart(monthly, "Month:O", "Count:Q", "Monthly Activity")
 
-with col2:
-    st.markdown("### Weekly Activity")
-    st.altair_chart(create_chart(weekly, "Week", "Count"), use_container_width=True)
 
-with col3:
-    st.markdown("### Monthly Activity")
-    st.altair_chart(create_chart(monthly, "Month", "Count"), use_container_width=True)
 
 
 
