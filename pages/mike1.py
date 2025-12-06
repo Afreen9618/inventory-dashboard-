@@ -1,28 +1,25 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-import numpy as np
 
 st.set_page_config(page_title="Inventory Cleaner", layout="wide")
 
 st.title("📦 Inventory Cleaner Dashboard")
 
 # -----------------------------
-# GENERATE DUMMY DATA (NO CSV NEEDED)
+# YOUR TEST DATA HERE
 # -----------------------------
-st.write("Demo Mode: Showing dashboard without CSV upload.")
-
-# Create 60 days of dummy data
-dates = pd.date_range(end=pd.Timestamp.today(), periods=60)
+st.subheader("Using Test Data (No CSV Required)")
 
 data = {
-    "Date": dates,
-    "STATUS": np.random.choice(["SOLD", "UNSOLD", "PENDING"], size=60),
-    "PRODUCT": np.random.choice(["Item A", "Item B", "Item C"], size=60),
-    "QTY": np.random.randint(1, 50, size=60),
+    "Date": pd.date_range(end=pd.Timestamp.today(), periods=9),
+    "Value": [1,2,3,4,5,6,7,8,9]     # <-- YOUR TEST DATA
 }
 
 df = pd.DataFrame(data)
+
+st.write("### Test Data Preview")
+st.dataframe(df)
 
 # -----------------------------
 # GROUPING
@@ -50,14 +47,12 @@ def show_chart(title, data, x, y):
     st.altair_chart(chart, use_container_width=True)
 
 # -----------------------------
-# SHOW DASHBOARD
+# DISPLAY CHARTS
 # -----------------------------
 show_chart("📅 Daily Activity", daily, "Date", "Count")
 show_chart("📆 Weekly Activity", weekly, "Week", "Count")
 show_chart("🗓 Monthly Activity", monthly, "Date", "Count")
 
-st.subheader("Raw Data")
-st.dataframe(df)
 
 
 
