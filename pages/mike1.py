@@ -77,7 +77,9 @@ df = df[[col for col in desired_order if col in df.columns]]
 # 8. SHOW CLEANED FINAL TABLE
 # -----------------------------------------
 st.dataframe(df)
-# REMOVE EMPTY / NONE / "--" ROWS IN CS1
+# -----------------------------------------
+# 5. REMOVE EMPTY / NONE / "--" CS1 ROWS
+# -----------------------------------------
 if "CS1" in df.columns:
     df = df[
         df["CS1"].notna() &
