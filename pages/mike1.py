@@ -1,69 +1,81 @@
+import streamlit as st
 import pandas as pd
-from datetime import datetime
 
-# --------- LOAD YOUR DATA ----------
-df = pd.read_csv("your_file.csv")
+st.title("Inventory Cleaner")
 
-# --------- FIX DATE FORMAT ----------
-def fix_date(date_value):
-    try:
-        return pd.to_datetime(date_value).strftime("%d-%m-%Y")
-    except:
-        return ""
+uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
 
-if "DATE OF REPACK" in df.columns:
-    df["DATE OF REPACK"] = df["DATE OF REPACK"].apply(fix_date)
+if uploaded_file is not None:
 
-if "DATE OF PRODUCTION" in df.columns:
-    df["DATE OF PRODUCTION"] = df["DATE OF PRODUCTION"].apply(fix_date)
+    df = pd.read_csv(uploaded_file)
 
-# --------- CLEAN CS1 COLUMN ----------
-if "CS1" in df.columns:
-    df["CS1"] = df["CS1"].astype(str).str.strip()
+    # ---------- FIX DATE FORMAT ----------
+    def fix_date(val):
+        try:
+            return pd.to_datetime(val).strftime("%d-%m-%Y")
+        except:
+            return ""
 
-    df = df[
-        (df["CS1"] != "--") &
-        (df["CS1"] != "") &
-        (df["CS1"] != "None") &
-        (df["CS1"] != "nan")
+    if "DATE OF REPACK" in df.columns:
+        df["DATE OF REPACK"] = df["DATE OF REPACK"].apply(fix_date)
+
+    if "DATE OF PRODUCTION" in df.columns:
+        df["DATE OF PRODUCTION"] = df["DATE OF PRODUCTION"].apply(fix_date)
+
+    # ---------- CLEAN CS1 ----------
+    if "CS1" in df.columns:
+        df["CS1"] = df["CS1"].astype(str).str.strip()
+
+        df = df[
+            (df["CS1"] != "--") &
+            (df["CS1"] != "") &
+            (df["CS1"] != "None") &
+            (df["CS1"] != "nan")
+        ]
+
+    # ---------- REORDER COLUMNS ----------
+    desired_columns = [
+        "STATUS",
+        "FCL NO.",
+        "ENTERED BY",
+        "DATE OF REPACK",
+        "DATE OF PRODUCTION",
+        "PRODUCT ID",
+        "PACKING STYLE",
+        "PRODUCT",
+        "GRADE",
+        "PACK SIZE",
+        "BRAND",
+        "CARTONS",
+        "LOT NO",
+        "TRACE ID",
+        "DAY CODE",
+        "LOOSE BAGS",
+        "KG LOOSE",
+        "PALLET ID",
+        "CS1",
+        "REMARKS",
+        "NAV ID",
+        "KGs",
+        "POUNDS",
+        "COLUMN1"
     ]
 
-# --------- REORDER COLUMNS ----------
-desired_columns = [
-    "STATUS",
-    "FCL NO.",
-    "ENTERED BY",
-    "DATE OF REPACK",
-    "DATE OF PRODUCTION",
-    "PRODUCT ID",
-    "PACKING STYLE",
-    "PRODUCT",
-    "GRADE",
-    "PACK SIZE",
-    "BRAND",
-    "CARTONS",
-    "LOT NO",
-    "TRACE ID",
-    "DAY CODE",
-    "LOOSE BAGS",
-    "KG LOOSE",
-    "PALLET ID",
-    "CS1",
-    "REMARKS",
-    "NAV ID",
-    "KGs",
-    "POUNDS",
-    "COLUMN1"
-]
+    final_cols = [c for c in desired_columns if c in df.columns]
 
-# Keep only columns that exist
-final_columns = [col for col in desired_columns if col in df.columns]
+    df = df[final_cols]
 
-df = df[final_columns]
+    st.success("File cleaned successfully!")
 
-# --------- SAVE CLEANED FILE ----------
-df.to_csv("cleaned_output.csv", index=False)
-print("✔ Completed: cleaned_output.csv generated")
+    st.dataframe(df)
+
+    # DOWNLOAD CLEANED FILE
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Cleaned CSV", csv, "cleaned_output.csv")
+
+else:
+    st.info("Upload a CSV file to continue.")
+
 
 
 
