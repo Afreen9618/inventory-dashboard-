@@ -1,20 +1,30 @@
 import streamlit as st
 import pandas as pd
 
-st.title("Mike 1 Inventory Page")
+st.title("Mike 1 Inventory Page (CS1 Only)")
 
 # Load Excel file
 df = pd.read_excel("TEST 1.xlsx")
 
-# 1️⃣ Remove all rows where CS2 has data (not empty)
-if "CS2" in df.columns:
-    df = df[df["CS2"].isna() | (df["CS2"] == "")]
+# Keep only CS1 rows
+df = df[df["Location"] == "CS1"]
 
-# 2️⃣ Remove CS2 column completely
-if "CS2" in df.columns:
-    df = df.drop(columns=["CS2"])
+# Remove unwanted columns if they exist
+columns_to_drop = ["FCL No", "PO", "UID No", "CS2", "cs2", "Cs2"]
 
-# Show cleaned data
+for col in columns_to_drop:
+    if col in df.columns:
+        df = df.drop(columns=[col])
+
+# Fix date formatting if column exists
+date_columns = ["Date", "Received Date", "Updated Date"]
+
+for col in date_columns:
+    if col in df.columns:
+        df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
+
+st.subheader("Filtered Inventory Data (CS1 Only)")
 st.dataframe(df)
+
 
 
