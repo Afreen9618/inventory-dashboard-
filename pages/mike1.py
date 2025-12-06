@@ -6,52 +6,51 @@ st.set_page_config(page_title="Inventory Cleaner", layout="wide")
 
 st.title("📦 Inventory Cleaner Dashboard")
 
-# -----------------------------
-# YOUR TEST DATA HERE
-# -----------------------------
-st.subheader("Using Test Data (No CSV Required)")
+# ----- Upload Section -----
+st.subheader("Upload CSV File")
 
-data = {
-    "Date": pd.date_range(end=pd.Timestamp.today(), periods=9),
-    "Value": [1,2,3,4,5,6,7,8,9]     # <-- YOUR TEST DATA
-}
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
-df = pd.DataFrame(data)
+if uploaded_file is None:
+    st.info("Please upload a CSV file to continue.")
+    st.stop()
 
-st.write("### Test Data Preview")
-st.dataframe(df)
+# ----- Read CSV -----
+df = pd.read_csv(uploaded_file)
+st.success(f"File uploaded: {uploaded_file.name}")
 
-# -----------------------------
-# GROUPING
-# -----------------------------
+# Show preview
+st.subheader("Preview Data")
+st.dataframe(df.head(20))
+
+# Ensure "Date" column exists
+if "Date" not in df.columns:
+    st.error("❌ Error: CSV must contain a 'Date' column.")
+    st.stop()
+
+# Convert to datetime
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+df = df.dropna(subset=["Date"])
+
+# ----- Create Groups -----
+
+# DAILY
 daily = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
+
+# WEEKLY
 weekly = df.groupby(df["Date"].dt.isocalendar().week).size().reset_index(name="Count")
 weekly.rename(columns={"week": "Week"}, inplace=True)
+
+# MONTHLY
 monthly = df.groupby(df["Date"].dt.strftime("%b")).size().reset_index(name="Count")
 
-# -----------------------------
-# CHART FUNCTION
-# -----------------------------
+# ----- Chart function -----
 def show_chart(title, data, x, y):
     st.subheader(title)
     chart = (
         alt.Chart(data)
         .mark_bar()
         .encode(
-            x=x,
-            y=y,
-            tooltip=[x, y]
-        )
-        .properties(height=300)
-    )
-    st.altair_chart(chart, use_container_width=True)
-
-# -----------------------------
-# DISPLAY CHARTS
-# -----------------------------
-show_chart("📅 Daily Activity", daily, "Date", "Count")
-show_chart("📆 Weekly Activity", weekly, "Week", "Count")
-show_chart("🗓 Monthly Activity", monthly, "Date", "Count")
 
 
 
