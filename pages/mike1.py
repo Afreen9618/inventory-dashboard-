@@ -1,182 +1,69 @@
-"use client";
+import streamlit as st
+import pandas as pd
+import altair as alt
 
-import { useState } from "react";
-import Papa from "papaparse";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+st.set_page_config(page_title="Inventory Cleaner", layout="wide")
 
-export default function InventoryCleaner() {
-  const [csvData, setCsvData] = useState([]);
-  const [fileName, setFileName] = useState("");
-  const [dailyChart, setDailyChart] = useState([]);
-  const [weeklyChart, setWeeklyChart] = useState([]);
-  const [monthlyChart, setMonthlyChart] = useState([]);
+st.title("📦 Inventory Cleaner Dashboard")
 
-  const handleFileUpload = (file: any) => {
-    setFileName(file.name);
+# ----- Upload Section -----
+st.subheader("Upload CSV File")
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (result: any) => {
-        const rows = result.data;
-        setCsvData(rows);
-        processCharts(rows);
-      },
-    });
-  };
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
-  const onDrop = (e: any) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    handleFileUpload(file);
-  };
+if uploaded_file is None:
+    st.info("Please upload a CSV file to continue.")
+    st.stop()
 
-  const processCharts = (rows: any[]) => {
-    const daily: any = {};
-    const weekly: any = {};
-    const monthly: any = {};
+# ----- Read CSV -----
+df = pd.read_csv(uploaded_file)
+st.success(f"File uploaded: {uploaded_file.name}")
 
-    rows.forEach((row: any) => {
-      const date = new Date(row["Date"]);
-      if (!date) return;
+# Show preview
+st.subheader("Preview Data")
+st.dataframe(df.head(10))
 
-      const day = date.toISOString().split("T")[0];
-      const week = `Week-${Math.ceil(date.getDate() / 7)}`;
-      const month = date.toLocaleString("default", { month: "short" });
+# Ensure "Date" column exists
+if "Date" not in df.columns:
+    st.error("❌ Error: CSV must contain a 'Date' column.")
+    st.stop()
 
-      daily[day] = (daily[day] || 0) + 1;
-      weekly[week] = (weekly[week] || 0) + 1;
-      monthly[month] = (monthly[month] || 0) + 1;
-    });
+# Convert to datetime
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+df = df.dropna(subset=["Date"])
 
-    setDailyChart(formatChart(daily));
-    setWeeklyChart(formatChart(weekly));
-    setMonthlyChart(formatChart(monthly));
-  };
+# ----- Daily, Weekly, Monthly groups -----
 
-  const formatChart = (obj: any) =>
-    Object.keys(obj).map((key) => ({ label: key, value: obj[key] }));
+# DAILY
+daily = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
 
-  return (
-    <div className="min-h-screen bg-[#0E1117] text-white p-10">
+# WEEKLY
+weekly = df.groupby(df["Date"].dt.isocalendar().week).size().reset_index(name="Count")
+weekly.rename(columns={"week": "Week"}, inplace=True)
 
-      {/* TITLE */}
-      <h1 className="text-5xl font-bold mb-10 text-center">
-        Inventory Cleaner Dashboard
-      </h1>
+# MONTHLY
+monthly = df.groupby(df["Date"].dt.strftime("%b")).size().reset_index(name="Count")
 
-      {/* UPLOAD BOX */}
-      <div
-        className="border-2 border-dashed border-gray-600 bg-[#1A1F29] p-10 rounded-xl text-center cursor-pointer hover:bg-[#222833] transition"
-        onDrop={onDrop}
-        onDragOver={(e) => e.preventDefault()}
-      >
-        <div className="text-6xl mb-3">📤</div>
-        <p className="text-xl">Drag & Drop your CSV file here</p>
-        <p className="text-gray-400">Max 200MB • Only CSV files allowed</p>
+# ----- Chart function -----
+def show_chart(title, data, x, y):
+    st.subheader(title)
+    chart = (
+        alt.Chart(data)
+        .mark_bar()
+        .encode(
+            x=x,
+            y=y,
+            tooltip=[x, y]
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(chart, use_container_width=True)
 
-        <input
-          type="file"
-          accept=".csv"
-          className="hidden"
-          id="fileInput"
-          onChange={(e) => handleFileUpload(e.target.files![0])}
-        />
+# ----- Display charts -----
+show_chart("📅 Daily Activity", daily, "Date", "Count")
+show_chart("📆 Weekly Activity", weekly, "Week", "Count")
+show_chart("🗓 Monthly Activity", monthly, "Date", "Count")
 
-        <label
-          htmlFor="fileInput"
-          className="mt-4 inline-block bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700 transition cursor-pointer"
-        >
-          Browse Files
-        </label>
-      </div>
-
-      {/* FILE STATUS */}
-      {!fileName ? (
-        <p className="mt-5 text-center text-blue-300">
-          Upload a CSV file to continue.
-        </p>
-      ) : (
-        <p className="mt-5 text-center text-green-400 text-xl">
-          ✔ Uploaded: {fileName}
-        </p>
-      )}
-
-      {/* PREVIEW TABLE */}
-      {csvData.length > 0 && (
-        <div className="mt-10 bg-[#1A1F29] p-6 rounded-xl overflow-auto">
-          <h2 className="text-2xl mb-4 font-semibold">Preview Data</h2>
-          <table className="table-auto w-full border border-gray-700 text-left">
-            <thead>
-              <tr>
-                {Object.keys(csvData[0]).map((key, i) => (
-                  <th key={i} className="border p-2 bg-[#222833]">
-                    {key}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {csvData.slice(0, 10).map((row, i) => (
-                <tr key={i}>
-                  {Object.values(row).map((val: any, j) => (
-                    <td key={j} className="border p-2">
-                      {val}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-gray-400 mt-2">Showing first 10 rows only…</p>
-        </div>
-      )}
-
-      {/* CHARTS */}
-      {csvData.length > 0 && (
-        <div className="mt-10">
-          <h2 className="text-3xl mb-6 font-semibold text-center">
-            Inventory Charts
-          </h2>
-
-          {/* DAILY */}
-          <ChartBlock title="Daily Activity" data={dailyChart} />
-
-          {/* WEEKLY */}
-          <ChartBlock title="Weekly Activity" data={weeklyChart} />
-
-          {/* MONTHLY */}
-          <ChartBlock title="Monthly Activity" data={monthlyChart} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ChartBlock({ title, data }: any) {
-  return (
-    <div className="bg-[#1A1F29] p-6 mb-10 rounded-xl">
-      <h3 className="text-xl mb-4 font-semibold">{title}</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="label" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="value" />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
 
 
 
