@@ -1,80 +1,73 @@
 import streamlit as st
 import pandas as pd
 
-st.title("Inventory Cleaner")
+st.title("Mike 1 Inventory Page")
 
-uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+# Load Excel file directly
+df = pd.read_excel("TEST 1.xlsx")
 
-if uploaded_file is not None:
+# ---------- FIX DATE FORMAT ----------
+def fix_date(val):
+    try:
+        return pd.to_datetime(val).strftime("%d-%m-%Y")
+    except:
+        return ""
 
-    df = pd.read_csv(uploaded_file)
+if "DATE OF REPACK" in df.columns:
+    df["DATE OF REPACK"] = df["DATE OF REPACK"].apply(fix_date)
 
-    # ---------- FIX DATE FORMAT ----------
-    def fix_date(val):
-        try:
-            return pd.to_datetime(val).strftime("%d-%m-%Y")
-        except:
-            return ""
+if "DATE OF PRODUCTION" in df.columns:
+    df["DATE OF PRODUCTION"] = df["DATE OF PRODUCTION"].apply(fix_date)
 
-    if "DATE OF REPACK" in df.columns:
-        df["DATE OF REPACK"] = df["DATE OF REPACK"].apply(fix_date)
+# ---------- CLEAN CS1 ----------
+if "CS1" in df.columns:
+    df["CS1"] = df["CS1"].astype(str).str.strip()
 
-    if "DATE OF PRODUCTION" in df.columns:
-        df["DATE OF PRODUCTION"] = df["DATE OF PRODUCTION"].apply(fix_date)
-
-    # ---------- CLEAN CS1 ----------
-    if "CS1" in df.columns:
-        df["CS1"] = df["CS1"].astype(str).str.strip()
-
-        df = df[
-            (df["CS1"] != "--") &
-            (df["CS1"] != "") &
-            (df["CS1"] != "None") &
-            (df["CS1"] != "nan")
-        ]
-
-    # ---------- REORDER COLUMNS ----------
-    desired_columns = [
-        "STATUS",
-        "FCL NO.",
-        "ENTERED BY",
-        "DATE OF REPACK",
-        "DATE OF PRODUCTION",
-        "PRODUCT ID",
-        "PACKING STYLE",
-        "PRODUCT",
-        "GRADE",
-        "PACK SIZE",
-        "BRAND",
-        "CARTONS",
-        "LOT NO",
-        "TRACE ID",
-        "DAY CODE",
-        "LOOSE BAGS",
-        "KG LOOSE",
-        "PALLET ID",
-        "CS1",
-        "REMARKS",
-        "NAV ID",
-        "KGs",
-        "POUNDS",
-        "COLUMN1"
+    df = df[
+        (df["CS1"] != "--") &
+        (df["CS1"] != "") &
+        (df["CS1"] != "None") &
+        (df["CS1"] != "nan")
     ]
 
-    final_cols = [c for c in desired_columns if c in df.columns]
+# ---------- REMOVE COLUMNS ----------
+cols_to_remove = ["FCL NO.", "UID NO.", "PO"]  # remove unwanted columns
+df = df.drop(columns=[c for c in cols_to_remove if c in df.columns])
 
-    df = df[final_cols]
+# ---------- REORDER COLUMNS ----------
+desired_columns = [
+    "STATUS",
+    "FCL NO.",
+    "ENTERED BY",
+    "DATE OF REPACK",
+    "DATE OF PRODUCTION",
+    "PRODUCT ID",
+    "PACKING STYLE",
+    "PRODUCT",
+    "GRADE",
+    "PACK SIZE",
+    "BRAND",
+    "CARTONS",
+    "LOT NO",
+    "TRACE ID",
+    "DAY CODE",
+    "LOOSE BAGS",
+    "KG LOOSE",
+    "PALLET ID",
+    "CS1",
+    "REMARKS",
+    "NAV ID",
+    "KGs",
+    "POUNDS",
+    "COLUMN1"
+]
 
-    st.success("File cleaned successfully!")
+final_cols = [c for c in desired_columns if c in df.columns]
 
-    st.dataframe(df)
+df = df[final_cols]
 
-    # DOWNLOAD CLEANED FILE
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download Cleaned CSV", csv, "cleaned_output.csv")
+st.dataframe(df)
 
-else:
-    st.info("Upload a CSV file to continue.")
 
 
 
