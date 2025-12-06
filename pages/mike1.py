@@ -1,49 +1,35 @@
-import streamlit as st
 import pandas as pd
+from datetime import datetime
 
-st.title("Mike 1 Inventory Page (CS1 Inventory)")
+# --------- LOAD YOUR DATA ----------
+df = pd.read_csv("your_file.csv")
 
-# -----------------------------------------
-# 1. LOAD EXCEL
-# -----------------------------------------
-df = pd.read_excel("TEST 1.xlsx")
+# --------- FIX DATE FORMAT ----------
+def fix_date(date_value):
+    try:
+        return pd.to_datetime(date_value).strftime("%d-%m-%Y")
+    except:
+        return ""
 
-# -----------------------------------------
-# 2. REMOVE CS2 ROWS
-# -----------------------------------------
-if "LOCATION" in df.columns:
-    df = df[df["LOCATION"] != "CS2"]
+if "DATE OF REPACK" in df.columns:
+    df["DATE OF REPACK"] = df["DATE OF REPACK"].apply(fix_date)
 
-# -----------------------------------------
-# 3. REMOVE CS2 COLUMN (if present)
-# -----------------------------------------
-df = df.drop(columns=["CS2"], errors="ignore")
+if "DATE OF PRODUCTION" in df.columns:
+    df["DATE OF PRODUCTION"] = df["DATE OF PRODUCTION"].apply(fix_date)
 
-# -----------------------------------------
-# 4. REMOVE PO + UID NO. COLUMNS
-# -----------------------------------------
-columns_to_drop = ["PO", "UID NO."]
-df = df.drop(columns=[c for c in columns_to_drop if c in df.columns])
-
-# -----------------------------------------
-# 5. REMOVE EMPTY CS1 ROWS
-# -----------------------------------------
+# --------- CLEAN CS1 COLUMN ----------
 if "CS1" in df.columns:
-    df = df[df["CS1"].notna() & (df["CS1"] != "") & (df["CS1"] != "None")]
+    df["CS1"] = df["CS1"].astype(str).str.strip()
 
-# -----------------------------------------
-# 6. FIX DATE FORMAT TO DD-MM-YYYY
-# -----------------------------------------
-date_columns = ["DATE OF REPACK", "DATE OF PRODUCTION"]
+    df = df[
+        (df["CS1"] != "--") &
+        (df["CS1"] != "") &
+        (df["CS1"] != "None") &
+        (df["CS1"] != "nan")
+    ]
 
-for col in date_columns:
-    if col in df.columns:
-        df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
-
-# -----------------------------------------
-# 7. FINAL COLUMN REARRANGEMENT
-# -----------------------------------------
-desired_order = [
+# --------- REORDER COLUMNS ----------
+desired_columns = [
     "STATUS",
     "FCL NO.",
     "ENTERED BY",
@@ -70,23 +56,14 @@ desired_order = [
     "COLUMN1"
 ]
 
-# Reorder columns (only keep those that exist)
-df = df[[col for col in desired_order if col in df.columns]]
+# Keep only columns that exist
+final_columns = [col for col in desired_columns if col in df.columns]
 
-# -----------------------------------------
-# 8. SHOW CLEANED FINAL TABLE
-# -----------------------------------------
-st.dataframe(df)
-# -----------------------------------------
-# 5. REMOVE EMPTY / NONE / "--" CS1 ROWS
-# -----------------------------------------
-if "CS1" in df.columns:
-    df = df[
-        df["CS1"].notna() &
-        (df["CS1"] != "") &
-        (df["CS1"] != "None") &
-        (df["CS1"] != "--")
-    ]
+df = df[final_columns]
+
+# --------- SAVE CLEANED FILE ----------
+df.to_csv("cleaned_output.csv", index=False)
+print("✔ Completed: cleaned_output.csv generated")
 
 
 
