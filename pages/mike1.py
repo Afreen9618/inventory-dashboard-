@@ -28,11 +28,11 @@ if "Date" not in df.columns:
     st.error("❌ Error: CSV must contain a 'Date' column.")
     st.stop()
 
-# Convert to datetime
+# Convert "Date" to datetime
 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 df = df.dropna(subset=["Date"])
 
-# ----- Create Groups -----
+# ----- Daily, Weekly, Monthly Groups -----
 
 # DAILY
 daily = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
@@ -44,13 +44,10 @@ weekly.rename(columns={"week": "Week"}, inplace=True)
 # MONTHLY
 monthly = df.groupby(df["Date"].dt.strftime("%b")).size().reset_index(name="Count")
 
-# ----- Chart function -----
-def show_chart(title, data, x, y):
-    st.subheader(title)
-    chart = (
-        alt.Chart(data)
-        .mark_bar()
-        .encode(
+# ----- Chart Function -----
+def show_char_
+
+
 
 
 
