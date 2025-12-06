@@ -1,197 +1,104 @@
-import React, { useState } from "react";
-import Papa from "papaparse";
+import streamlit as st
+import pandas as pd
+import altair as alt
 
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-} from "recharts";
+st.title("Inventory Cleaner")
 
-export default function InventoryCleaner() {
-  const [csvData, setCsvData] = useState([]);
-  const [totalCartons, setTotalCartons] = useState(0);
-  const [fclNo, setFclNo] = useState("");
+uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
 
-  const [dailyData, setDailyData] = useState([]);
-  const [weeklyData, setWeeklyData] = useState([]);
-  const [monthlyData, setMonthlyData] = useState([]);
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
+    # -------------------------------
+    # 1. REMOVE CS2 ROWS COMPLETELY
+    # -------------------------------
+    if "CS2" in df.columns:
+        df = df[df["CS2"].isna()]  # keep only rows where CS2 is empty
+        df = df.drop(columns=["CS2"])  # remove CS2 column
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (result) => {
-        const data = result.data;
+    # -------------------------------
+    # 2. REMOVE COLUMNS: FCL NO, PO, UID NO
+    # -------------------------------
+    for col in ["FCL NO", "PO", "UID NO"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
 
-        // TOTAL CARTONS
-        const cartonsTotal = data.reduce((sum, row) => {
-          const value = parseInt(row["No of Cartons"]) || 0;
-          return sum + value;
-        }, 0);
+    # -------------------------------
+    # 3. FIX DATE FORMAT
+    # -------------------------------
+    df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
+    df["DATE"] = df["DATE"].dt.strftime("%d-%m-%Y")
 
-        setCsvData(data);
-        setTotalCartons(cartonsTotal);
+    # -------------------------------
+    # 4. REMOVE ROWS WHERE CS1 == "--"
+    # -------------------------------
+    df = df[df["CS1"] != "--"]
 
-        generateCharts(data);
-      },
-    });
-  };
+    # -------------------------------
+    # 5. REARRANGE COLUMNS
+    # -------------------------------
+    desired_order = [
+        "STATUS", "FCL NO.", "ENTERED BY", "DATE OF REPACK", "DATE OF PRODUCTION",
+        "PRODUCT ID", "PACKING STYLE", "PRODUCT", "GRADE", "PACK SIZE", "BRAND",
+        "CARTONS", "LOT NO", "TRACE ID", "DAY CODE", "LOOSE BAGS", "KG LOOSE",
+        "PALLET ID", "CS1", "REMARKS", "NAV ID", "KGs", "POUNDS", "COLUMN1"
+    ]
 
-  // -------------------------------------------------------------
-  // GENERATE DAILY, WEEKLY, MONTHLY CHART STRUCTURE
-  // -------------------------------------------------------------
-  const generateCharts = (data) => {
-    const dailyMap = {};
-    const weeklyMap = {};
-    const monthlyMap = {};
+    # Keep only existing columns from desired order
+    existing_cols = [c for c in desired_order if c in df.columns]
+    other_cols = [c for c in df.columns if c not in existing_cols]
+    df = df[existing_cols + other_cols]
 
-    data.forEach((row) => {
-      const dateStr = row["Date"];
-      const cartons = parseInt(row["No of Cartons"]) || 0;
+    # -------------------------------
+    # 6. SUMMARY — TOTAL CARTONS
+    # -------------------------------
+    if "CARTONS" in df.columns:
+        total_cartons = df["CARTONS"].sum()
+        st.subheader(f"📦 Total Cartons: **{total_cartons}**")
 
-      if (!dateStr) return;
+    # -------------------------------
+    # 7. DISPLAY CLEANED DATA
+    # -------------------------------
+    st.write("### Cleaned Inventory Data")
+    st.dataframe(df)
 
-      const date = new Date(dateStr);
+    # -------------------------------
+    # 8. CHARTS (Daily, Weekly, Monthly)
+    # -------------------------------
 
-      // DAILY
-      const dayKey = date.toISOString().split("T")[0];
-      dailyMap[dayKey] = (dailyMap[dayKey] || 0) + cartons;
+    # Convert date for grouping
+    df_chart = df.copy()
+    df_chart["DATE"] = pd.to_datetime(df_chart["DATE"], format="%d-%m-%Y", errors="coerce")
 
-      // WEEKLY (ISO WEEK)
-      const weekKey =
-        date.getFullYear() + "-W" + getWeekNumber(date);
-      weeklyMap[weekKey] = (weeklyMap[weekKey] || 0) + cartons;
+    if "CARTONS" not in df_chart.columns:
+        st.warning("CARTONS column missing — charts cannot be generated.")
+    else:
+        st.subheader("📅 Daily Cartons Chart")
+        daily = df_chart.groupby("DATE")["CARTONS"].sum().reset_index()
+        daily_chart = alt.Chart(daily).mark_bar().encode(
+            x="DATE:T", y="CARTONS:Q"
+        )
+        st.altair_chart(daily_chart, use_container_width=True)
 
-      // MONTHLY
-      const monthKey =
-        date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
-      monthlyMap[monthKey] = (monthlyMap[monthKey] || 0) + cartons;
-    });
+        st.subheader("📆 Weekly Cartons Chart")
+        df_chart["WEEK"] = df_chart["DATE"].dt.to_period("W").apply(lambda r: r.start_time)
+        weekly = df_chart.groupby("WEEK")["CARTONS"].sum().reset_index()
+        weekly_chart = alt.Chart(weekly).mark_bar().encode(
+            x="WEEK:T", y="CARTONS:Q"
+        )
+        st.altair_chart(weekly_chart, use_container_width=True)
 
-    setDailyData(
-      Object.keys(dailyMap).map((key) => ({
-        date: key,
-        cartons: dailyMap[key],
-      }))
-    );
+        st.subheader("📅 Monthly Cartons Chart")
+        df_chart["MONTH"] = df_chart["DATE"].dt.to_period("M").dt.to_timestamp()
+        monthly = df_chart.groupby("MONTH")["CARTONS"].sum().reset_index()
+        monthly_chart = alt.Chart(monthly).mark_bar().encode(
+            x="MONTH:T", y="CARTONS:Q"
+        )
+        st.altair_chart(monthly_chart, use_container_width=True)
 
-    setWeeklyData(
-      Object.keys(weeklyMap).map((key) => ({
-        week: key,
-        cartons: weeklyMap[key],
-      }))
-    );
+else:
+    st.info("Upload a CSV file to continue.")
 
-    setMonthlyData(
-      Object.keys(monthlyMap).map((key) => ({
-        month: key,
-        cartons: monthlyMap[key],
-      }))
-    );
-  };
-
-  // -------------------------------------------------------------
-  // FUNCTION: GET WEEK NUMBER
-  // -------------------------------------------------------------
-  function getWeekNumber(date) {
-    const firstDay = new Date(date.getFullYear(), 0, 1);
-    const days = Math.floor(
-      (date - firstDay) / (24 * 60 * 60 * 1000)
-    );
-    return Math.ceil((days + firstDay.getDay() + 1) / 7);
-  }
-
-  return (
-    <div className="p-6 text-white bg-gray-900 min-h-screen">
-      <h1 className="text-4xl font-bold mb-6">Inventory Cleaner</h1>
-
-      {/* FCL NO */}
-      <div className="mb-6">
-        <label className="block font-semibold mb-2">FCL No.</label>
-        <input
-          type="text"
-          className="p-3 w-80 rounded bg-gray-800 border border-gray-700"
-          placeholder="Enter FCL Number"
-          value={fclNo}
-          onChange={(e) => setFclNo(e.target.value)}
-        />
-      </div>
-
-      {/* FILE UPLOAD */}
-      <div className="mb-6">
-        <label className="block font-semibold mb-2">Upload CSV File</label>
-        <input
-          type="file"
-          accept=".csv"
-          className="p-3 rounded bg-gray-800 border border-gray-700"
-          onChange={handleFileUpload}
-        />
-      </div>
-
-      {/* TOTAL CARTONS */}
-      {csvData.length > 0 && (
-        <div className="bg-blue-900 p-4 mb-4 rounded text-lg font-semibold">
-          Total No. of Cartons:{" "}
-          <span className="text-yellow-300">{totalCartons}</span>
-        </div>
-      )}
-
-      {/* ---------------- DAILY BAR CHART ---------------- */}
-      {dailyData.length > 0 && (
-        <div className="bg-gray-800 p-4 rounded mb-6">
-          <h2 className="text-xl mb-3 font-semibold">Daily Cartons Chart</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={dailyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="cartons" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* ---------------- WEEKLY BAR CHART ---------------- */}
-      {weeklyData.length > 0 && (
-        <div className="bg-gray-800 p-4 rounded mb-6">
-          <h2 className="text-xl mb-3 font-semibold">Weekly Cartons Chart</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={weeklyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="week" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="cartons" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* ---------------- MONTHLY BAR CHART ---------------- */}
-      {monthlyData.length > 0 && (
-        <div className="bg-gray-800 p-4 rounded mb-6">
-          <h2 className="text-xl mb-3 font-semibold">Monthly Cartons Chart</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="cartons" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 
