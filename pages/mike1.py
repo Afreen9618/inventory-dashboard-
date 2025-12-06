@@ -2,83 +2,151 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 
-st.set_page_config(page_title="Inventory Cleaner Dashboard", layout="wide")
+st.set_page_config(page_title="MIKE 1 Inventory Dashboard", layout="wide")
 
-st.title("📊 Inventory Cleaner Dashboard")
+st.title("📦 MIKE 1 Inventory Dashboard")
 
 # -------------------------------
-# FILE UPLOADER (CSV + EXCEL)
+# Load Excel file
 # -------------------------------
-uploaded_file = st.file_uploader(
-    "Upload your CSV or Excel file",
-    type=["csv", "xlsx", "xls"]
-)
+uploaded_file = st.file_uploader("Upload TEST 1.xlsx file", type=["xlsx"])
 
 if uploaded_file is None:
-    st.info("⬆ Please upload TEST 1 file (.csv or .xlsx) to see the dashboard.")
+    st.info("Please upload TEST 1.xlsx to continue.")
     st.stop()
 
-# Read file properly
-file_name = uploaded_file.name.lower()
-
-if file_name.endswith(".csv"):
-    df = pd.read_csv(uploaded_file)
-else:
-    df = pd.read_excel(uploaded_file)
+# Read Excel
+df = pd.read_excel(uploaded_file)
 
 # -------------------------------
-# CHECK DATE COLUMN
+# Remove CS2 completely
 # -------------------------------
-if "Date" not in df.columns:
-    st.error("❌ The file must contain a column named **Date**")
+if "CS 2" in df.columns:
+    df = df.drop(columns=["CS 2"])
+
+# -------------------------------
+# Remove rows where CS1 is empty or "-"
+# -------------------------------
+df = df[df["CS 1"].notna()]
+df = df[df["CS 1"].astype(str).str.strip() != "-"]
+
+# -------------------------------
+# Remove unwanted columns (if exist)
+# -------------------------------
+remove_cols = ["UID NO", "PO"]   # If they exist
+df = df.drop(columns=[c for c in remove_cols if c in df.columns], errors="ignore")
+
+# -------------------------------
+# Format dates
+# -------------------------------
+date_cols = ["DATE OF REPACK", "DATE OF PRODUCE"]
+for col in date_cols:
+    if col in df.columns:
+        df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
+
+# -------------------------------
+# Reorder columns exactly
+# -------------------------------
+final_order = [
+    "STATUS", "FCL-NO", "ENTERED BY", "DATE OF REPACK", "DATE OF PRODUCE",
+    "PRODUCT ID", "PACKING STYLE", "PRODUCT", "GRADE", "PACK SIZE", "BRAND",
+    "CARTONS", "LOT NO", "TRACE ID", "DAY CODE", "LOOSE BAGS", "KG LOOSE",
+    "PALLET ID", "CS 1", "REMARKS", "NAV ID", "KGs", "POUNDS"
+]
+
+df = df[[col for col in final_order if col in df.columns]]
+
+# -------------------------------
+# Show total cartons
+# -------------------------------
+total_cartons = df["CARTONS"].sum()
+st.metric(label="📦 Total Cartons", value=total_cartons)
+
+# -------------------------------
+# Show cleaned table
+# -------------------------------
+st.subheader("Cleaned Inventory Data")
+st.dataframe(df, use_container_width=True)
+
+# -------------------------------
+# Chart data preparation
+# -------------------------------
+if "DATE OF RE
+import streamlit as st
+import pandas as pd
+import altair as alt
+
+st.set_page_config(page_title="MIKE 1 Inventory Dashboard", layout="wide")
+
+st.title("📦 MIKE 1 Inventory Dashboard")
+
+# -------------------------------
+# Load Excel file
+# -------------------------------
+uploaded_file = st.file_uploader("Upload TEST 1.xlsx file", type=["xlsx"])
+
+if uploaded_file is None:
+    st.info("Please upload TEST 1.xlsx to continue.")
     st.stop()
 
-df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+# Read Excel
+df = pd.read_excel(uploaded_file)
 
 # -------------------------------
-# PREVIEW
+# Remove CS2 completely
 # -------------------------------
-st.subheader("🔍 Preview Data")
-st.dataframe(df.head(10))
+if "CS 2" in df.columns:
+    df = df.drop(columns=["CS 2"])
 
 # -------------------------------
-# CREATE CHART DATA
+# Remove rows where CS1 is empty or "-"
 # -------------------------------
-df["Day"] = df["Date"].dt.date
-df["Week"] = df["Date"].dt.isocalendar().week
-df["Month"] = df["Date"].dt.strftime("%b")
-
-daily = df.groupby("Day").size().reset_index(name="Count")
-weekly = df.groupby("Week").size().reset_index(name="Count")
-monthly = df.groupby("Month").size().reset_index(name="Count")
+df = df[df["CS 1"].notna()]
+df = df[df["CS 1"].astype(str).str.strip() != "-"]
 
 # -------------------------------
-# CHART FUNCTION
+# Remove unwanted columns (if exist)
 # -------------------------------
-def render_chart(data, x, y, title):
-    chart = (
-        alt.Chart(data)
-        .mark_bar()
-        .encode(
-            x=x,
-            y=y,
-            tooltip=[x, y]
-        )
-        .properties(height=300, title=title)
-    )
-    st.altair_chart(chart, use_container_width=True)
+remove_cols = ["UID NO", "PO"]   # If they exist
+df = df.drop(columns=[c for c in remove_cols if c in df.columns], errors="ignore")
 
 # -------------------------------
-# CHARTS
+# Format dates
 # -------------------------------
-st.subheader("📅 Daily Activity")
-render_chart(daily, "Day:T", "Count:Q", "Daily Activity")
+date_cols = ["DATE OF REPACK", "DATE OF PRODUCE"]
+for col in date_cols:
+    if col in df.columns:
+        df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
 
-st.subheader("📆 Weekly Activity")
-render_chart(weekly, "Week:O", "Count:Q", "Weekly Activity")
+# -------------------------------
+# Reorder columns exactly
+# -------------------------------
+final_order = [
+    "STATUS", "FCL-NO", "ENTERED BY", "DATE OF REPACK", "DATE OF PRODUCE",
+    "PRODUCT ID", "PACKING STYLE", "PRODUCT", "GRADE", "PACK SIZE", "BRAND",
+    "CARTONS", "LOT NO", "TRACE ID", "DAY CODE", "LOOSE BAGS", "KG LOOSE",
+    "PALLET ID", "CS 1", "REMARKS", "NAV ID", "KGs", "POUNDS"
+]
 
-st.subheader("📈 Monthly Activity")
-render_chart(monthly, "Month:O", "Count:Q", "Monthly Activity")
+df = df[[col for col in final_order if col in df.columns]]
+
+# -------------------------------
+# Show total cartons
+# -------------------------------
+total_cartons = df["CARTONS"].sum()
+st.metric(label="📦 Total Cartons", value=total_cartons)
+
+# -------------------------------
+# Show cleaned table
+# -------------------------------
+st.subheader("Cleaned Inventory Data")
+st.dataframe(df, use_container_width=True)
+
+# -------------------------------
+# Chart data preparation
+# -------------------------------
+if "DATE OF RE
+
 
 
 
