@@ -1,27 +1,28 @@
-import pandas as pd
 import streamlit as st
+import pandas as pd
+
+st.title("Mike 1 Inventory Page")
+
 df = pd.read_excel("TEST 1.xlsx")
 
-# Remove rows belonging to CS2
-if "CS2" in df.columns:
-    df = df[df["CS2"].isna() | (df["CS2"] == "")]
+# Remove CS2 rows
+if "LOCATION" in df.columns:
+    df = df[df["LOCATION"] != "CS2"]
 
-# Remove CS2 column
-df = df.drop(columns=["CS2"], errors="ignore")
+# Correct column names to drop
+columns_to_drop = ["FCL NO.", "PO", "UID NO."]
 
-# Remove columns FCL NO, PO, UID NO
-cols_to_remove = ["FCL NO", "PO", "UID NO"]
-df = df.drop(columns=[col for col in cols_to_remove if col in df.columns], errors="ignore")
+df = df.drop(columns=[c for c in columns_to_drop if c in df.columns])
 
-# REMOVE ROWS WHERE CS1 IS EMPTY OR NONE
-df = df[df["CS1"].notna() & (df["CS1"] != "") & (df["CS1"] != "None")]
+# Fix date format
+date_columns = ["DATE OF REPACKING", "DATE OF PRODUCTION"]
 
-# Convert date columns to DD-MM-YYYY
-for col in df.columns:
-    if "date" in col.lower():
+for col in date_columns:
+    if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
 
 st.dataframe(df)
+
 
 
 
