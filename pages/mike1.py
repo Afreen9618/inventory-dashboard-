@@ -1,82 +1,102 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
+from datetime import datetime
 
-# -----------------------------
-# Page Setup
-# -----------------------------
 st.set_page_config(page_title="Inventory Cleaner Dashboard", layout="wide")
 
-st.title("📦 Inventory Cleaner Dashboard")
+# ---- TITLE ----
+st.markdown(
+    """
+    <h1 style='text-align:center; color:white;'>
+        📦 Inventory Cleaner Dashboard
+    </h1>
+    """,
+    unsafe_allow_html=True
+)
 
-# -----------------------------
-# File Upload
-# -----------------------------
-st.subheader("Upload CSV File")
+# ---- UPLOAD FILE ----
+st.markdown(
+    """
+    <div style="
+        border:2px dashed #555;
+        background:#1A1F29;
+        padding:40px;
+        border-radius:15px;
+        text-align:center;
+        color:white;">
+        
+        <h2>📤 Upload CSV File</h2>
+        <p>Drag & Drop or Browse • Max 200MB • CSV only</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+uploaded_file = st.file_uploader("", type=["csv"])
 
-if uploaded_file is None:
-    st.info("Please upload a CSV file to continue.")
+# Stop if no file
+if not uploaded_file:
+    st.info("⬆ Upload a CSV file to continue.")
     st.stop()
 
-# -----------------------------
-# Read CSV
-# -----------------------------
-try:
-    df = pd.read_csv(uploaded_file)
-except Exception as e:
-    st.error("❌ Could not read CSV. Error: " + str(e))
-    st.stop()
+# ---- READ CSV ----
+df = pd.read_csv(uploaded_file)
 
-st.success(f"File uploaded: {uploaded_file.name}")
+st.success(f"✔ Uploaded: {uploaded_file.name}")
 
-# Show preview
-st.subheader("Preview Data")
-st.dataframe(df.head(20))
-
-# -----------------------------
-# Validate CSV
-# -----------------------------
+# Ensure Date column exists
 if "Date" not in df.columns:
-    st.error("❌ Your CSV must contain a column named 'Date'.")
+    st.error("❌ ERROR: Your CSV must contain a 'Date' column.")
     st.stop()
 
 # Convert Date column
 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-df = df.dropna(subset=["Date"])
 
-# -----------------------------
-# Aggregations
-# -----------------------------
-daily = df.groupby(df["Date"].dt.date).size().reset_index(name="Count")
-weekly = df.groupby(df["Date"].dt.isocalendar().week).size().reset_index(name="Count")
-weekly.rename(columns={"week": "Week"}, inplace=True)
-monthly = df.groupby(df["Date"].dt.strftime("%b")).size().reset_index(name="Count")
+# ---- PREVIEW TABLE ----
+st.markdown("### 🔎 Preview (first 10 rows)")
+st.dataframe(df.head(10))
 
-# -----------------------------
-# Chart Function
-# -----------------------------
-def show_chart(title, data, x, y):
-    st.subheader(title)
-    chart = (
+# ---- PROCESS DATA ----
+df["Day"] = df["Date"].dt.date
+df["Week"] = df["Date"].dt.strftime("Week-%U")
+df["Month"] = df["Date"].dt.strftime("%b")
+
+daily = df.groupby("Day").size().reset_index(name="Count")
+weekly = df.groupby("Week").size().reset_index(name="Count")
+monthly = df.groupby("Month").size().reset_index(name="Count")
+
+# ---- CHART CREATOR ----
+def create_chart(data, x, y):
+    return (
         alt.Chart(data)
         .mark_bar()
         .encode(
-            x=x,
-            y=y,
+            x=alt.X(x, sort=None, axis=alt.Axis(labelColor="white", titleColor="white")),
+            y=alt.Y(y, axis=alt.Axis(labelColor="white", titleColor="white")),
             tooltip=[x, y]
         )
         .properties(height=300)
+        .configure_axis(grid=False)
     )
-    st.altair_chart(chart, use_container_width=True)
 
-# -----------------------------
-# Display Charts
-# -----------------------------
-show_chart("📅 Daily Activity", daily, "Date", "Count")
-show_chart("📆 Weekly Activity", weekly, "Week", "Count")
-show_chart("🗓 Monthly Activity", monthly, "Date", "Count")
+# ---- CHARTS SECTION ----
+st.markdown("## 📊 Inventory Charts")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("### Daily Activity")
+    st.altair_chart(create_chart(daily, "Day", "Count"), use_container_width=True)
+
+with col2:
+    st.markdown("### Weekly Activity")
+    st.altair_chart(create_chart(weekly, "Week", "Count"), use_container_width=True)
+
+with col3:
+    st.markdown("### Monthly Activity")
+    st.altair_chart(create_chart(monthly, "Month", "Count"), use_container_width=True)
+
 
 
 
