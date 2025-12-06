@@ -1,3 +1,5 @@
+import pandas as pd
+import streamlit as st
 df = pd.read_excel("TEST 1.xlsx")
 
 # Remove rows belonging to CS2
